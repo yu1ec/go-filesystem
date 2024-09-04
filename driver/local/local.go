@@ -45,6 +45,12 @@ func (fs *LocalFilesystem) GetSignedUrl(path string, expires int64) (string, err
 	return fs.GetUrl(path), nil
 }
 
+// MustGetSignedUrl 获取签名URL
+func (fs *LocalFilesystem) MustGetSignedUrl(path string, expires int64) string {
+	url, _ := fs.GetSignedUrl(path, expires)
+	return url
+}
+
 func (fs *LocalFilesystem) GetImageWidthHeight(path string) (int, int, error) {
 	data, err := fs.Get(path)
 	if err != nil {

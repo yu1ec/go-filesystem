@@ -27,6 +27,8 @@ type Filesystem interface {
 	// expires: 过期时间 单位/秒
 	GetSignedUrl(path string, expires int64) (string, error)
 	GetImageWidthHeight(path string) (int, int, error) // 获取图片的宽高
+
+	MustGetSignedUrl(path string, expires int64) string // 获取签名URL
 }
 
 // NewStorage 创建文件系统

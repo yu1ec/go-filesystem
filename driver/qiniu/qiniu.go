@@ -158,6 +158,12 @@ func (qn *QiniuFilesystem) GetSignedUrl(path string, expires int64) (string, err
 	return qn.Bucket.GetSignedUrl(path, expires)
 }
 
+// MustGetSignedUrl 获取签名URL
+func (qn *QiniuFilesystem) MustGetSignedUrl(path string, expires int64) string {
+	url, _ := qn.GetSignedUrl(path, expires)
+	return url
+}
+
 // GetImageWidthHeight 获取图片的宽高
 func (qn *QiniuFilesystem) GetImageWidthHeight(path string) (width int, height int, err error) {
 	path = path + "?imageInfo"
