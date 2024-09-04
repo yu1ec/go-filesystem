@@ -1,0 +1,78 @@
+package filesystem
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/yu1ec/go-filesystem/config"
+	"github.com/yu1ec/go-filesystem/driver/local"
+	"github.com/yu1ec/go-filesystem/driver/qiniu"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Filesystem 文件系统接口
+type Filesystem interface {
+	Put(ctx context.Context, path string, data []byte) error // 将数据写入文件
+	PutWithoutContext(path string, data []byte) error        // 将数据写入文件不带上下文
+	Get(path string) ([]byte, error)                         // 获取文件内容
+	GetUrl(path string) string                               // 获取文件的URL
+
+	// GetSignedUrl 获取签名URL
+	// path: 文件路径
+	// expires: 过期时间 单位/秒
+	GetSignedUrl(path string, expires int64) (string, error)
+	GetImageWidthHeight(path string) (int, int, error) // 获取图片的宽高
+}
+
+// NewStorage 创建文件系统
+func NewStorage(driver config.FilesystemDriver) Filesystem {
+	var fs Filesystem
+	switch driver.Name {
+	case "local":
+		var cfg config.LocalDriverConfig
+		mapToStruct(driver.Config, &cfg)
+		fs = local.NewStoragte(cfg.Root)
+	case "qiniu":
+		var cfg config.QiniuDriverConfig
+		mapToStruct(driver.Config, &cfg)
+
+		bucket := qiniu.Bucket{
+			Name:            cfg.Bucket,
+			Domain:          cfg.Domain,
+			TimestampEncKey: cfg.TimestampEncKey,
+		}
+		fs = qiniu.NewStorage(cfg.AccessKey, cfg.AccessSecret, bucket)
+	default:
+		panic("不支持的文件系统")
+	}
+
+	return fs
+}
+
+// mapToStruct 手动将 map[string]any 转换为结构体
+func mapToStruct(input any, output any) {
+	data, _ := yaml.Marshal(input)
+	yaml.Unmarshal(data, output)
+}
+
+// BuildUploadKey 生成上传文件的key
+func BuildUploadKey(uploadDir, fileExt string) string {
+	uploadDir = strings.Trim(uploadDir, "/")
+	fileExt = strings.Trim(fileExt, ".")
+
+	// 生成随机字节
+	randomBytes := make([]byte, 16)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return ""
+	}
+	uniqueKey := hex.EncodeToString(randomBytes)
+	datePath := time.Now().Format("2006/01/02")
+
+	return fmt.Sprintf("%s/%s/%s.%s", uploadDir, datePath, uniqueKey, fileExt)
+}
