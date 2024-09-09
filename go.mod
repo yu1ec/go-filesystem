@@ -4,6 +4,8 @@ go 1.22.3
 
 require (
 	github.com/qiniu/go-sdk/v7 v7.22.0
+	github.com/studio-b12/gowebdav v0.9.0
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
 	gopkg.in/yaml.v3 v3.0.1
 )
 

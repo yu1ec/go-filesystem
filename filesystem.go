@@ -11,6 +11,7 @@ import (
 	"github.com/yu1ec/go-filesystem/config"
 	"github.com/yu1ec/go-filesystem/driver/local"
 	"github.com/yu1ec/go-filesystem/driver/qiniu"
+	"github.com/yu1ec/go-filesystem/driver/webdav"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,7 +34,14 @@ type Filesystem interface {
 
 // NewStorage 创建文件系统
 func NewStorage(driver config.FilesystemDriver) Filesystem {
+	fs, _ := NewStorageWithError(driver)
+	return fs
+}
+
+// NewStorageWithError 带错误信息的文件系统创建
+func NewStorageWithError(driver config.FilesystemDriver) (Filesystem, error) {
 	var fs Filesystem
+	var err error
 	switch driver.Name {
 	case "local":
 		var cfg config.LocalDriverConfig
@@ -49,11 +57,15 @@ func NewStorage(driver config.FilesystemDriver) Filesystem {
 			TimestampEncKey: cfg.TimestampEncKey,
 		}
 		fs = qiniu.NewStorage(cfg.AccessKey, cfg.AccessSecret, bucket)
+	case "webdav":
+		var cfg config.WebdavDriverConfig
+		mapToStruct(driver.Config, &cfg)
+		fs, err = webdav.NewStorage(cfg.Uri, cfg.Username, cfg.Password)
 	default:
 		panic("不支持的文件系统")
 	}
 
-	return fs
+	return fs, err
 }
 
 // mapToStruct 手动将 map[string]any 转换为结构体

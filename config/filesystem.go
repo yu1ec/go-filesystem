@@ -19,3 +19,10 @@ type QiniuDriverConfig struct {
 	Domain          string `yaml:"domain"`
 	TimestampEncKey string `yaml:"timestamp_enc_key,omitempty"`
 }
+
+// Webdav文件系统
+type WebdavDriverConfig struct {
+	Uri      string `yaml:"uri"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+}
