@@ -61,8 +61,10 @@ func NewStorageWithError(driver config.FilesystemDriver) (Filesystem, error) {
 		var cfg config.WebdavDriverConfig
 		mapToStruct(driver.Config, &cfg)
 		fs, err = webdav.NewStorage(cfg.Uri, cfg.Username, cfg.Password)
+	case "":
+		panic("请正确选择文件系统配置")
 	default:
-		panic("不支持的文件系统")
+		panic(driver.Name + "为不支持的文件系统")
 	}
 
 	return fs, err
