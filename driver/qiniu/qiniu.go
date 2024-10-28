@@ -209,13 +209,25 @@ func (qn *QiniuFilesystem) GetImageWidthHeight(path string) (width int, height i
 }
 
 // GetPrivateUrl 获取私有URL
-func (qn *QiniuFilesystem) GetPrivateUrl(path string, expires int64, query *url.Values) string {
+func (qn *QiniuFilesystem) GetPrivateUrl(path string, expires int64, query any) string {
 	deadline := time.Now().Add(time.Duration(expires) * time.Second).Unix()
 
 	var privateUrl string
 	if query != nil {
-		privateUrl = storage.MakePrivateURLv2WithQuery(qn.mac, qn.Bucket.Domain, path, *query, deadline)
-	} else {
+		urlValuesQs, ok := query.(url.Values)
+		if ok {
+			privateUrl = storage.MakePrivateURLv2WithQuery(qn.mac, qn.Bucket.Domain, path, urlValuesQs, deadline)
+		}
+
+		if privateUrl == "" {
+			queryString, ok := query.(string)
+			if ok {
+				privateUrl = storage.MakePrivateURLv2WithQueryString(qn.mac, qn.Bucket.Domain, path, queryString, deadline)
+			}
+		}
+	}
+
+	if privateUrl == "" {
 		privateUrl = storage.MakePrivateURLv2(qn.mac, qn.Bucket.Domain, path, deadline)
 	}
 	return privateUrl

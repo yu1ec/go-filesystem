@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -32,7 +31,7 @@ type Filesystem interface {
 
 	MustGetSignedUrl(path string, expires int64) string // 获取签名URL
 
-	GetPrivateUrl(path string, expires int64, query *url.Values) string // 获取私有URL
+	GetPrivateUrl(path string, expires int64, query any) string // 获取私有URL
 }
 
 // NewStorage 创建文件系统

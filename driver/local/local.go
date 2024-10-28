@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -70,7 +69,7 @@ func (fs *LocalFilesystem) MustGetSignedUrl(path string, expires int64) string {
 	return url
 }
 
-func (fs *LocalFilesystem) GetPrivateUrl(path string, expires int64, query *url.Values) string {
+func (fs *LocalFilesystem) GetPrivateUrl(path string, expires int64, query any) string {
 	return path
 }
 

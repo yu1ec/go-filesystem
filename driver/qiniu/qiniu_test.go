@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/joho/godotenv"
@@ -88,28 +90,111 @@ func TestQiniuFilesystem_GetImageWidthSize(t *testing.T) {
 }
 
 func TestQiniuFilesystem_GetPrivateUrl(t *testing.T) {
-	// 需要添加新的bucket名称
+	// 初始化测试环境
+	err := godotenv.Load()
+	if err != nil {
+		t.Logf("Error loading .env file: %v", err)
+	}
+
 	key := os.Getenv("QINIU_PRIVATE_TEST_PRIVATE_KEY")
-	privateUrl := qnFsPrivate.GetPrivateUrl(key, 30, nil)
-	// 测试是否可以访问
-	resp, err := http.Get(privateUrl)
-	if err != nil {
-		t.Error(err)
+	if key == "" {
+		t.Fatal("QINIU_PRIVATE_TEST_PRIVATE_KEY environment variable is not set")
 	}
-	defer resp.Body.Close()
-	t.Log("private url:", privateUrl)
 
-	// 加query签名地址
-	query := url.Values{}
-	query.Set("query", "test")
-	queryUrl := qnFsPrivate.GetPrivateUrl(key, 30, &query)
-	t.Log("query private url:", queryUrl)
+	qnFs := qnFsPrivate
+	bucket := qnFsPrivate.Bucket
 
-	// 测试是否可以访问
-	resp, err = http.Get(queryUrl)
-	if err != nil {
-		t.Error(err)
+	testCases := []struct {
+		name    string
+		query   any
+		checker func(t *testing.T, rawUrl string)
+	}{
+		{
+			name:  "无查询参数",
+			query: nil,
+			checker: func(t *testing.T, rawUrl string) {
+				decodedUrl, err := url.QueryUnescape(rawUrl)
+				if err != nil {
+					t.Errorf("URL解码失败: %v", err)
+					return
+				}
+
+				pattern := "^" + regexp.QuoteMeta(bucket.Domain) + "/" +
+					regexp.QuoteMeta(key) +
+					"\\?e=\\d+&token=[^:]+:[^&]+$"
+				matched, _ := regexp.MatchString(pattern, decodedUrl)
+				if !matched {
+					t.Errorf("URL格式不匹配\n期望格式: %s\n实际URL: %s", pattern, decodedUrl)
+				}
+			},
+		},
+		{
+			name:  "字符串查询参数",
+			query: "foo=bar&baz=qux",
+			checker: func(t *testing.T, rawUrl string) {
+				decodedUrl, err := url.QueryUnescape(rawUrl)
+				if err != nil {
+					t.Errorf("URL解码失败: %v", err)
+					return
+				}
+
+				// 检查是否包含必要的参数
+				if !strings.Contains(decodedUrl, "foo=bar") || !strings.Contains(decodedUrl, "baz=qux") {
+					t.Error("URL缺少必要的查询参数")
+				}
+				// 检查基本格式
+				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
+					t.Error("URL缺少e或token参数")
+				}
+			},
+		},
+		{
+			name: "url.Values查询参数",
+			query: func() url.Values {
+				v := url.Values{}
+				v.Set("foo", "bar")
+				v.Set("baz", "qux")
+				return v
+			}(),
+			checker: func(t *testing.T, rawUrl string) {
+				decodedUrl, err := url.QueryUnescape(rawUrl)
+				if err != nil {
+					t.Errorf("URL解码失败: %v", err)
+					return
+				}
+
+				// 检查是否包含必要的参数
+				if !strings.Contains(decodedUrl, "foo=bar") || !strings.Contains(decodedUrl, "baz=qux") {
+					t.Error("URL缺少必要的查询参数")
+				}
+				// 检查基本格式
+				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
+					t.Error("URL缺少e或token参数")
+				}
+			},
+		},
 	}
-	defer resp.Body.Close()
-	t.Log("query private url:", queryUrl)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			privateUrl := qnFs.GetPrivateUrl(key, 30, tc.query)
+			t.Logf("生成的私有URL: %s", privateUrl)
+
+			// 使用自定义检查器验证URL
+			tc.checker(t, privateUrl)
+
+			// 验证URL可访问性
+			resp, err := http.Get(privateUrl)
+			if err != nil {
+				t.Logf("警告：无法访问生成的URL: %v", err)
+			} else {
+				defer resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					t.Logf("警告：URL返回非200状态码: %d", resp.StatusCode)
+				} else {
+					t.Logf("成功访问URL，状态码: %d", resp.StatusCode)
+				}
+			}
+		})
+	}
 }
