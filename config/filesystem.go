@@ -18,6 +18,7 @@ type QiniuDriverConfig struct {
 	Bucket          string `yaml:"bucket"`
 	Domain          string `yaml:"domain"`
 	TimestampEncKey string `yaml:"timestamp_enc_key,omitempty"`
+	Private         bool   `yaml:"private,omitempty"`
 }
 
 // Webdav文件系统

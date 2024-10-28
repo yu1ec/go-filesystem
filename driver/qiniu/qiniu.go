@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,7 @@ type Bucket struct {
 	Name            string // 存储桶名称
 	Domain          string // 存储桶域名
 	TimestampEncKey string // 时间戳加密key
+	Private         bool   // 是否私有
 }
 
 // NewStorage 创建七牛云存储
@@ -156,7 +158,11 @@ func (qn *QiniuFilesystem) GetUrl(path string) string {
 
 // GetSignedUrl 获取签名URL
 func (qn *QiniuFilesystem) GetSignedUrl(path string, expires int64) (string, error) {
-	return qn.Bucket.GetSignedUrl(path, expires)
+	if qn.Bucket.Private {
+		return qn.getPrivateUrl(path, expires)
+	} else {
+		return qn.Bucket.GetSignedUrl(path, expires)
+	}
 }
 
 // MustGetSignedUrl 获取签名URL
@@ -208,27 +214,22 @@ func (qn *QiniuFilesystem) GetImageWidthHeight(path string) (width int, height i
 	return imageInfoResp.Width, imageInfoResp.Height, nil
 }
 
-// GetPrivateUrl 获取私有URL
-func (qn *QiniuFilesystem) GetPrivateUrl(path string, expires int64, query any) string {
-	deadline := time.Now().Add(time.Duration(expires) * time.Second).Unix()
-
+// getPrivateUrl 获取私有URL
+func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, error) {
 	var privateUrl string
+	deadline := time.Now().Add(time.Duration(expires) * time.Second).Unix()
+	// 从path中解析query,
+	uri, err := url.Parse(path)
+	if err != nil {
+		return "", errors.New("path is invalid")
+	}
+	key := uri.Path
+
+	query := uri.Query()
 	if query != nil {
-		urlValuesQs, ok := query.(url.Values)
-		if ok {
-			privateUrl = storage.MakePrivateURLv2WithQuery(qn.mac, qn.Bucket.Domain, path, urlValuesQs, deadline)
-		}
-
-		if privateUrl == "" {
-			queryString, ok := query.(string)
-			if ok {
-				privateUrl = storage.MakePrivateURLv2WithQueryString(qn.mac, qn.Bucket.Domain, path, queryString, deadline)
-			}
-		}
+		privateUrl = storage.MakePrivateURLv2WithQuery(qn.mac, qn.Bucket.Domain, key, query, deadline)
+	} else {
+		privateUrl = storage.MakePrivateURLv2(qn.mac, qn.Bucket.Domain, key, deadline)
 	}
-
-	if privateUrl == "" {
-		privateUrl = storage.MakePrivateURLv2(qn.mac, qn.Bucket.Domain, path, deadline)
-	}
-	return privateUrl
+	return privateUrl, nil
 }

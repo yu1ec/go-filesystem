@@ -34,8 +34,9 @@ func init() {
 	qnFs = qiniu.NewStorage(accessKey, accessSecret, secureBucket)
 
 	privateBucket := qiniu.Bucket{
-		Name:   os.Getenv("QINIU_PRIVATE_BUCKET_NAME"),
-		Domain: os.Getenv("QINIU_PRIVATE_BUCKET_DOMAIN"),
+		Name:    os.Getenv("QINIU_PRIVATE_BUCKET_NAME"),
+		Domain:  os.Getenv("QINIU_PRIVATE_BUCKET_DOMAIN"),
+		Private: true,
 	}
 	qnFsPrivate = qiniu.NewStorage(accessKey, accessSecret, privateBucket)
 }
@@ -65,7 +66,7 @@ func TestQiniuFilesystem_Get(t *testing.T) {
 	t.Log("get data:", string(data))
 }
 
-func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
+func TestQiniuFilesystem_GetSignedUrl1(t *testing.T) {
 	remoteKey := os.Getenv("QINIU_SECURE_TEST_REMOTE_KEY")
 	signedUrl, err := qnFs.GetSignedUrl(remoteKey, 30)
 	if err != nil {
@@ -89,87 +90,72 @@ func TestQiniuFilesystem_GetImageWidthSize(t *testing.T) {
 	//Output: image width: 512 height: 512
 }
 
-func TestQiniuFilesystem_GetPrivateUrl(t *testing.T) {
-	// 初始化测试环境
-	err := godotenv.Load()
-	if err != nil {
-		t.Logf("Error loading .env file: %v", err)
-	}
-
-	key := os.Getenv("QINIU_PRIVATE_TEST_PRIVATE_KEY")
-	if key == "" {
-		t.Fatal("QINIU_PRIVATE_TEST_PRIVATE_KEY environment variable is not set")
-	}
-
-	qnFs := qnFsPrivate
-	bucket := qnFsPrivate.Bucket
-
+func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 	testCases := []struct {
-		name    string
-		query   any
-		checker func(t *testing.T, rawUrl string)
+		name     string
+		fs       *qiniu.QiniuFilesystem
+		key      string
+		query    string
+		checkUrl func(t *testing.T, url string)
 	}{
 		{
-			name:  "无查询参数",
-			query: nil,
-			checker: func(t *testing.T, rawUrl string) {
+			name: "安全时间戳签名",
+			fs:   qnFs,
+			key:  os.Getenv("QINIU_SECURE_TEST_REMOTE_KEY"),
+			checkUrl: func(t *testing.T, url string) {
+				// 检查是否包含时间戳签名参数
+				if !strings.Contains(url, "sign=") || !strings.Contains(url, "t=") {
+					t.Error("URL缺少时间戳签名参数")
+				}
+			},
+		},
+		{
+			name: "私有空间签名-无参数",
+			fs:   qnFsPrivate,
+			key:  os.Getenv("QINIU_PRIVATE_TEST_REMOTE_KEY"),
+			checkUrl: func(t *testing.T, rawUrl string) {
 				decodedUrl, err := url.QueryUnescape(rawUrl)
 				if err != nil {
 					t.Errorf("URL解码失败: %v", err)
 					return
 				}
-
-				pattern := "^" + regexp.QuoteMeta(bucket.Domain) + "/" +
-					regexp.QuoteMeta(key) +
-					"\\?e=\\d+&token=[^:]+:[^&]+$"
+				// 解码
+				pattern := "^" + regexp.QuoteMeta(qnFsPrivate.Bucket.Domain) + "/" +
+					"[^?]+\\?e=\\d+&token=[^:]+:[^&]+$"
 				matched, _ := regexp.MatchString(pattern, decodedUrl)
 				if !matched {
-					t.Errorf("URL格式不匹配\n期望格式: %s\n实际URL: %s", pattern, decodedUrl)
+					t.Errorf("私有空间URL格式不匹配\n期望格式: %s\n实际URL: %s", pattern, decodedUrl)
 				}
 			},
 		},
 		{
-			name:  "字符串查询参数",
-			query: "foo=bar&baz=qux",
-			checker: func(t *testing.T, rawUrl string) {
+			name:  "私有空间签名-带查询参数",
+			fs:    qnFsPrivate,
+			key:   os.Getenv("QINIU_PRIVATE_TEST_REMOTE_KEY"),
+			query: "?imageInfo",
+			checkUrl: func(t *testing.T, rawUrl string) {
 				decodedUrl, err := url.QueryUnescape(rawUrl)
 				if err != nil {
 					t.Errorf("URL解码失败: %v", err)
 					return
 				}
-
-				// 检查是否包含必要的参数
-				if !strings.Contains(decodedUrl, "foo=bar") || !strings.Contains(decodedUrl, "baz=qux") {
-					t.Error("URL缺少必要的查询参数")
-				}
 				// 检查基本格式
-				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
-					t.Error("URL缺少e或token参数")
+				if !strings.Contains(decodedUrl, "imageInfo") {
+					t.Error("URL缺少imageInfo参数")
 				}
-			},
-		},
-		{
-			name: "url.Values查询参数",
-			query: func() url.Values {
-				v := url.Values{}
-				v.Set("foo", "bar")
-				v.Set("baz", "qux")
-				return v
-			}(),
-			checker: func(t *testing.T, rawUrl string) {
-				decodedUrl, err := url.QueryUnescape(rawUrl)
-				if err != nil {
-					t.Errorf("URL解码失败: %v", err)
+				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
+					t.Error("URL缺少签名参数")
+				}
+
+				// 验证token格式
+				tokenParts := strings.Split(decodedUrl, "token=")
+				if len(tokenParts) != 2 {
+					t.Error("URL token格式错误")
 					return
 				}
-
-				// 检查是否包含必要的参数
-				if !strings.Contains(decodedUrl, "foo=bar") || !strings.Contains(decodedUrl, "baz=qux") {
-					t.Error("URL缺少必要的查询参数")
-				}
-				// 检查基本格式
-				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
-					t.Error("URL缺少e或token参数")
+				token := tokenParts[1]
+				if !strings.Contains(token, ":") {
+					t.Error("token格式错误，缺少':'分隔符")
 				}
 			},
 		},
@@ -177,22 +163,29 @@ func TestQiniuFilesystem_GetPrivateUrl(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			privateUrl := qnFs.GetPrivateUrl(key, 30, tc.query)
-			t.Logf("生成的私有URL: %s", privateUrl)
+			key := tc.key
+			if tc.query != "" {
+				key = key + tc.query
+			}
 
-			// 使用自定义检查器验证URL
-			tc.checker(t, privateUrl)
+			signedUrl, err := tc.fs.GetSignedUrl(key, 30)
+			if err != nil {
+				t.Fatalf("获取签名URL失败: %v", err)
+			}
+
+			t.Logf("签名URL: %s", signedUrl)
+			tc.checkUrl(t, signedUrl)
 
 			// 验证URL可访问性
-			resp, err := http.Get(privateUrl)
+			resp, err := http.Get(signedUrl)
 			if err != nil {
 				t.Logf("警告：无法访问生成的URL: %v", err)
 			} else {
 				defer resp.Body.Close()
 				if resp.StatusCode != http.StatusOK {
-					t.Logf("警告：URL返回非200状态码: %d", resp.StatusCode)
+					t.Errorf("URL访问失败，状态码: %d", resp.StatusCode)
 				} else {
-					t.Logf("成功访问URL，状态码: %d", resp.StatusCode)
+					t.Logf("URL访问成功，状态码: %d", resp.StatusCode)
 				}
 			}
 		})

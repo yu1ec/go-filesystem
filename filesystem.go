@@ -30,8 +30,6 @@ type Filesystem interface {
 	GetImageWidthHeight(path string) (int, int, error) // 获取图片的宽高
 
 	MustGetSignedUrl(path string, expires int64) string // 获取签名URL
-
-	GetPrivateUrl(path string, expires int64, query any) string // 获取私有URL
 }
 
 // NewStorage 创建文件系统
@@ -57,6 +55,7 @@ func NewStorageWithError(driver config.FilesystemDriver) (Filesystem, error) {
 			Name:            cfg.Bucket,
 			Domain:          cfg.Domain,
 			TimestampEncKey: cfg.TimestampEncKey,
+			Private:         cfg.Private,
 		}
 		fs = qiniu.NewStorage(cfg.AccessKey, cfg.AccessSecret, bucket)
 	case "webdav":
