@@ -66,18 +66,24 @@ func TestQiniuFilesystem_Get(t *testing.T) {
 	t.Log("get data:", string(data))
 }
 
-func TestQiniuFilesystem_GetSignedUrl1(t *testing.T) {
-	remoteKey := os.Getenv("QINIU_SECURE_TEST_REMOTE_KEY")
-	signedUrl, err := qnFs.GetSignedUrl(remoteKey, 30)
-	if err != nil {
-		t.Error(err)
-	}
-	t.Log("signed url:", signedUrl)
-}
-
 func TestQiniuFilesystem_GetImageWidthSize(t *testing.T) {
 	remoteKey := os.Getenv("QINIU_SECURE_TEST_IMAGE_KEY")
 	width, height, err := qnFs.GetImageWidthHeight(remoteKey)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if width != 512 || height != 512 {
+		t.Error("image size error")
+	}
+
+	t.Log("image width:", width, "height:", height)
+	//Output: image width: 512 height: 512
+}
+
+func TestQiniuFilesystem_GetPrivateImageWidthSize(t *testing.T) {
+	remoteKey := os.Getenv("QINIU_PRIVATE_TEST_REMOTE_KEY")
+	width, height, err := qnFsPrivate.GetImageWidthHeight(remoteKey)
 	if err != nil {
 		t.Error(err)
 	}

@@ -225,9 +225,9 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 	}
 	key := strings.TrimLeft(uri.Path, "/")
 
-	query := uri.Query()
-	if query != nil {
-		privateUrl = storage.MakePrivateURLv2WithQuery(qn.mac, qn.Bucket.Domain, key, query, deadline)
+	qs := uri.RawQuery
+	if qs != "" {
+		privateUrl = storage.MakePrivateURLv2WithQueryString(qn.mac, qn.Bucket.Domain, key, qs, deadline)
 	} else {
 		privateUrl = storage.MakePrivateURLv2(qn.mac, qn.Bucket.Domain, key, deadline)
 	}
