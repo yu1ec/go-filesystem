@@ -159,6 +159,32 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "私有空间-完整url签名",
+			fs:   qnFsPrivate,
+			key:  os.Getenv("QINIU_PRIVATE_TEST_REMOTE_URL"),
+			checkUrl: func(t *testing.T, rawUrl string) {
+				decodedUrl, err := url.QueryUnescape(rawUrl)
+				if err != nil {
+					t.Errorf("URL解码失败: %v", err)
+					return
+				}
+				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
+					t.Error("URL缺少签名参数")
+				}
+
+				// 验证token格式
+				tokenParts := strings.Split(decodedUrl, "token=")
+				if len(tokenParts) != 2 {
+					t.Error("URL token格式错误")
+					return
+				}
+				token := tokenParts[1]
+				if !strings.Contains(token, ":") {
+					t.Error("token格式错误，缺少':'分隔符")
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {

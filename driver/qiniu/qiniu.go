@@ -223,7 +223,7 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 	if err != nil {
 		return "", errors.New("path is invalid")
 	}
-	key := uri.Path
+	key := strings.TrimLeft(uri.Path, "/")
 
 	query := uri.Query()
 	if query != nil {
