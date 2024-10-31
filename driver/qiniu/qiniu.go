@@ -225,7 +225,13 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 	}
 	key := strings.TrimLeft(uri.Path, "/")
 
-	qs := uri.RawQuery
+	var qs string
+
+	// 要在签名前对管道操作符需要进行url编码，否则浏览器会自动编码，导致签名失效
+	if uri.RawQuery != "" {
+		qs = strings.ReplaceAll(uri.RawQuery, "|", "%7C")
+	}
+
 	if qs != "" {
 		privateUrl = storage.MakePrivateURLv2WithQueryString(qn.mac, qn.Bucket.Domain, key, qs, deadline)
 	} else {

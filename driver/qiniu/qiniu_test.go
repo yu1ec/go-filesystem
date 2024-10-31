@@ -2,6 +2,7 @@ package qiniu_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -191,6 +192,32 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "私有空间-带完整水印参数的完整url签名",
+			fs:   qnFsPrivate,
+			key:  os.Getenv("QINIU_PRIVATE_TEST_REMOTE_URL") + "?imageslim|imageMogr2/auto-orient/thumbnail/500x/blur/1x0/quality/85/interlace/1/ignore-error/1|watermark/4/text/Qm9vbUFp/fontsize/480/rotate/45/uw/255/uh/255/dissolve/20/fill/IzgwODA4MA==",
+			checkUrl: func(t *testing.T, rawUrl string) {
+				decodedUrl, err := url.QueryUnescape(rawUrl)
+				if err != nil {
+					t.Errorf("URL解码失败: %v", err)
+					return
+				}
+				if !strings.Contains(decodedUrl, "e=") || !strings.Contains(decodedUrl, "token=") {
+					t.Error("URL缺少签名参数")
+				}
+
+				// 验证token格式
+				tokenParts := strings.Split(decodedUrl, "token=")
+				if len(tokenParts) != 2 {
+					t.Error("URL token格式错误")
+					return
+				}
+				token := tokenParts[1]
+				if !strings.Contains(token, ":") {
+					t.Error("token格式错误，缺少':'分隔符")
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -219,6 +246,12 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 				} else {
 					t.Logf("URL访问成功，状态码: %d", resp.StatusCode)
 				}
+
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					t.Errorf("读取响应体失败: %v", err)
+				}
+				t.Logf("响应体: %s", string(body))
 			}
 		})
 	}
