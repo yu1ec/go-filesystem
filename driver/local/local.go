@@ -81,3 +81,12 @@ func (fs *LocalFilesystem) GetImageWidthHeight(path string) (int, int, error) {
 	height := img.Bounds().Dy()
 	return width, height, nil
 }
+
+// Delete 删除文件
+func (fs *LocalFilesystem) Delete(path string) error {
+	fullPath := filepath.Join(fs.Root, path)
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+	return nil
+}

@@ -175,4 +175,33 @@ func TestLocalFilesystem(t *testing.T) {
 			t.Errorf("图像尺寸不正确。期望：2x3，实际：%dx%d", width, height)
 		}
 	})
+
+	t.Run("Delete", func(t *testing.T) {
+		// 创建测试文件
+		testPath := filepath.Join(tempDir, "test_delete.txt")
+		testData := []byte("test file for deletion")
+
+		err := fs.Put(context.Background(), testPath, testData)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// 测试删除文件
+		err = fs.Delete(testPath)
+		if err != nil {
+			t.Errorf("Delete failed: %v", err)
+		}
+
+		// 验证文件已被删除
+		_, err = fs.Get(testPath)
+		if err == nil {
+			t.Error("Expected error when getting deleted file, got nil")
+		}
+
+		// 测试删除不存在的文件
+		err = fs.Delete(filepath.Join(tempDir, "nonexistent.txt"))
+		if err == nil {
+			t.Error("Expected error when deleting non-existent file, got nil")
+		}
+	})
 }

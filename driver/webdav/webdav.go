@@ -93,3 +93,7 @@ func (fs *WebdavFilesystem) GetImageWidthHeight(path string) (int, int, error) {
 	height := img.Bounds().Dy()
 	return width, height, nil
 }
+
+func (fs *WebdavFilesystem) Delete(path string) error {
+	return fs.client.Remove(path)
+}

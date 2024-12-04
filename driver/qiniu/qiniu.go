@@ -234,3 +234,8 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 	}
 	return privateUrl, nil
 }
+
+// Delete 删除文件
+func (qn *QiniuFilesystem) Delete(path string) error {
+	return qn.bucketManager.Delete(qn.Bucket.Name, path)
+}

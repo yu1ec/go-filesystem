@@ -148,4 +148,27 @@ func TestWebdavFilesystem(t *testing.T) {
 			t.Errorf("Incorrect image dimensions. Expected 2x3, got %dx%d", width, height)
 		}
 	})
+
+	t.Run("Delete", func(t *testing.T) {
+		// 先创建一个测试文件
+		testData := []byte("test file for deletion")
+		testPath := "/test_delete.txt"
+
+		err := fs.Put(context.Background(), testPath, testData)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// 测试删除文件
+		err = fs.Delete(testPath)
+		if err != nil {
+			t.Errorf("Delete failed: %v", err)
+		}
+
+		// 验证文件已被删除
+		_, err = fs.Get(testPath)
+		if err == nil {
+			t.Error("Expected error when getting deleted file, got nil")
+		}
+	})
 }

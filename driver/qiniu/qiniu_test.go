@@ -256,3 +256,25 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 		})
 	}
 }
+
+func TestQiniuFilesystem_Delete(t *testing.T) {
+	// 先上传一个文件用于测试删除
+	uploadData := []byte("test file for deletion")
+	remoteKey := filesystem.BuildUploadKey("test_delete", "txt")
+	err := qnFs.Put(context.Background(), remoteKey, uploadData)
+	if err != nil {
+		t.Fatalf("Failed to upload test file: %v", err)
+	}
+
+	// 测试删除文件
+	err = qnFs.Delete(remoteKey)
+	if err != nil {
+		t.Errorf("Delete failed: %v", err)
+	}
+
+	// 验证文件已被删除
+	_, err = qnFs.Get(remoteKey)
+	if err == nil {
+		t.Error("Expected error when getting deleted file, got nil")
+	}
+}

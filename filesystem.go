@@ -30,6 +30,8 @@ type Filesystem interface {
 	GetImageWidthHeight(path string) (int, int, error) // 获取图片的宽高
 
 	MustGetSignedUrl(path string, expires int64) string // 获取签名URL
+
+	Delete(path string) error // 删除文件
 }
 
 // NewStorage 创建文件系统
