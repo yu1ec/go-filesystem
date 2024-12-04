@@ -46,7 +46,7 @@ func NewStorageWithError(driver config.FilesystemDriver) (Filesystem, error) {
 	case "local":
 		var cfg config.LocalDriverConfig
 		mapToStruct(driver.Config, &cfg)
-		fs = local.NewStorage(cfg.Root)
+		fs = local.NewStorage(cfg.Root, cfg.BaseUrl)
 	case "qiniu":
 		var cfg config.QiniuDriverConfig
 		mapToStruct(driver.Config, &cfg)

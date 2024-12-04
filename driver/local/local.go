@@ -7,26 +7,30 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type LocalFilesystem struct {
-	Root string // 根目录
+	Root    string // 根目录
+	BaseUrl string // 基础URL
 }
 
-func NewStorage(root string) *LocalFilesystem {
+func NewStorage(root string, baseUrl string) *LocalFilesystem {
 	fs := &LocalFilesystem{
-		Root: root,
+		Root:    root,
+		BaseUrl: baseUrl,
 	}
 	return fs
 }
 
 func (fs *LocalFilesystem) Put(ctx context.Context, path string, data []byte) error {
 	// path包含了文件名，所以需要提取出路径的文件夹路径,然后进行创建
-	dir := filepath.Dir(path)
+	fullPath := filepath.Join(fs.Root, path)
+	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(fullPath, data, 0644)
 }
 
 func (fs *LocalFilesystem) PutWithoutContext(path string, data []byte) error {
@@ -34,27 +38,20 @@ func (fs *LocalFilesystem) PutWithoutContext(path string, data []byte) error {
 }
 
 func (fs *LocalFilesystem) Get(path string) ([]byte, error) {
-	return os.ReadFile(path)
+	fullPath := filepath.Join(fs.Root, path)
+	return os.ReadFile(fullPath)
 }
 
 // GetUrl 获取文件完整路径
 // 当路径是绝对路径时，忽略Root配置
 func (fs *LocalFilesystem) GetUrl(path string) string {
-	var fullPath string
-
-	if filepath.IsAbs(path) {
-		fullPath = path
+	if fs.BaseUrl != "" {
+		return strings.TrimRight(fs.BaseUrl, "/") + "/" + strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "./")
 	} else {
-		fullPath = filepath.Join(fs.Root, path)
+		fullPath := filepath.Join(fs.Root, path)
+		return fullPath
 	}
 
-	absolutePath, err := filepath.Abs(fullPath)
-	if err != nil {
-		// 如果无法获取绝对路径，则使用原始路径
-		absolutePath = fullPath
-	}
-
-	return absolutePath
 }
 
 // GetSignedUrl 获取签名URL

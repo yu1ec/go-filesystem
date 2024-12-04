@@ -8,7 +8,8 @@ type FilesystemDriver struct {
 
 // 本地文件系统
 type LocalDriverConfig struct {
-	Root string `yaml:"root,omitempty"`
+	Root    string `yaml:"root,omitempty"`     // 文件存储根目录 设置后，文件会被限制到此目录下
+	BaseUrl string `yaml:"base_url,omitempty"` // 基础URL, 用于生成完整URL
 }
 
 // 七牛云文件系统

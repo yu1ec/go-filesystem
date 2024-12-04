@@ -20,7 +20,7 @@ func TestLocalFilesystem(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	fs := local.NewStorage(tempDir)
+	fs := local.NewStorage(tempDir, "")
 
 	t.Run("Put和Get", func(t *testing.T) {
 		path := filepath.Join(tempDir, "test.txt")
@@ -74,49 +74,54 @@ func TestLocalFilesystem(t *testing.T) {
 
 		tests := []struct {
 			name     string
+			root     string
+			baseUrl  string
 			input    string
 			expected string
 		}{
 			{
-				name:     "相对路径",
+				name:     "相对路径-无BaseUrl",
+				root:     tempDir,
+				baseUrl:  "",
 				input:    relativeFile,
 				expected: filepath.Join(tempDir, relativeFile),
 			},
 			{
-				name:     "绝对路径",
+				name:     "绝对路径-无BaseUrl",
+				root:     tempDir,
+				baseUrl:  "",
 				input:    absoluteFile,
-				expected: absoluteFile,
+				expected: filepath.Join(tempDir, absoluteFile),
 			},
 			{
-				name:     "空Root的绝对路径",
-				input:    absoluteFile,
-				expected: absoluteFile,
+				name:     "相对路径-有BaseUrl",
+				root:     tempDir,
+				baseUrl:  "http://example.com/files",
+				input:    relativeFile,
+				expected: "http://example.com/files/test_url.txt",
+			},
+			{
+				name:     "相对路径-有BaseUrl带斜杠",
+				root:     tempDir,
+				baseUrl:  "http://example.com/files/",
+				input:    relativeFile,
+				expected: "http://example.com/files/test_url.txt",
+			},
+			{
+				name:     "相对路径-有BaseUrl-路径中有点",
+				root:     tempDir,
+				baseUrl:  "http://example.com/files",
+				input:    "./test_url.txt",
+				expected: "http://example.com/files/test_url.txt",
 			},
 		}
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				var fs *local.LocalFilesystem
-				if tt.name == "空Root的绝对路径" {
-					fs = local.NewStorage("")
-				} else {
-					fs = local.NewStorage(tempDir)
-				}
-
-				url := fs.GetUrl(tt.input)
-
-				expected, err := filepath.Abs(tt.expected)
-				if err != nil {
-					t.Fatalf("无法获取绝对路径: %v", err)
-				}
-
-				if url != expected {
-					t.Errorf("GetUrl返回的URL不正确。\n期望：%s\n实际：%s", expected, url)
-				}
-
-				// 验证返回的路径是否指向正确的文件
-				if _, err := os.Stat(url); os.IsNotExist(err) {
-					t.Errorf("GetUrl返回的路径不存在：%s", url)
+				fs := local.NewStorage(tt.root, tt.baseUrl)
+				got := fs.GetUrl(tt.input)
+				if got != tt.expected {
+					t.Errorf("GetUrl() = %v, want %v", got, tt.expected)
 				}
 			})
 		}
