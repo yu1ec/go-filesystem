@@ -63,10 +63,10 @@ func (bucket Bucket) GetUrl(path string) string {
 	return bucket.Domain + "/" + path
 }
 
-// GetSignedUrl 获取签名URL
+// GetAntileechSignedUrl 获取防盗链签名URL
 // path: 文件路径
 // expires: 过期时间 单位/秒
-func (bucket Bucket) GetSignedUrl(path string, expires int64) (string, error) {
+func (bucket Bucket) GetAntileechSignedUrl(path string, expires int64) (string, error) {
 	var restURL string
 	if strings.HasPrefix(path, "http") {
 		restURL = path
@@ -84,6 +84,16 @@ func (bucket Bucket) GetSignedUrl(path string, expires int64) (string, error) {
 		return url, nil
 	}
 
+}
+
+// GetBucketManager 获取BucketManager
+func (qn *QiniuFilesystem) GetBucketManager() *storage.BucketManager {
+	return qn.bucketManager
+}
+
+// NewCensor 创建审查器
+func (qn *QiniuFilesystem) NewCensor() *Censor {
+	return NewCensor(qn)
 }
 
 // SimpleUploadToken 生成简单上传凭证
@@ -124,28 +134,14 @@ func (qn *QiniuFilesystem) Put(ctx context.Context, path string, data []byte) er
 
 // Get 获取文件
 func (qn *QiniuFilesystem) Get(path string) ([]byte, error) {
-	resURL, err := qn.Bucket.GetSignedUrl(path, 180)
+	output, err := qn.bucketManager.Get(qn.Bucket.Name, path, nil)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get signed url, %w", err)
+		return nil, err
 	}
 
-	httpCli := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := httpCli.Get(resURL)
+	body, err := io.ReadAll(output.Body)
 	if err != nil {
-		return nil, fmt.Errorf("fail to get file, %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fail to get file, status code: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read body, %w", err)
+		return nil, err
 	}
 
 	return body, nil
@@ -161,7 +157,7 @@ func (qn *QiniuFilesystem) GetSignedUrl(path string, expires int64) (string, err
 	if qn.Bucket.Private {
 		return qn.getPrivateUrl(path, expires)
 	} else {
-		return qn.Bucket.GetSignedUrl(path, expires)
+		return qn.Bucket.GetAntileechSignedUrl(path, expires)
 	}
 }
 

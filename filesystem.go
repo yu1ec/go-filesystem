@@ -95,3 +95,20 @@ func BuildUploadKey(uploadDir, fileExt string) string {
 
 	return fmt.Sprintf("%s/%s/%s.%s", uploadDir, datePath, uniqueKey, fileExt)
 }
+
+// AsQiniu 将通用文件系统转换为七牛云文件系统
+// 如果不是七牛云文件系统，第二个返回值为 false
+func AsQiniu(fs Filesystem) (*qiniu.QiniuFilesystem, bool) {
+	if qn, ok := fs.(*qiniu.QiniuFilesystem); ok {
+		return qn, true
+	}
+	return nil, false
+}
+
+func MustAsQiniu(fs Filesystem) *qiniu.QiniuFilesystem {
+	qn, ok := AsQiniu(fs)
+	if !ok {
+		panic("文件系统不是七牛云文件系统")
+	}
+	return qn
+}

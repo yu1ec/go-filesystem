@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/joho/godotenv"
+	"github.com/stretchr/testify/assert"
 	"github.com/yu1ec/go-filesystem"
 	"github.com/yu1ec/go-filesystem/driver/qiniu"
 )
@@ -276,5 +277,82 @@ func TestQiniuFilesystem_Delete(t *testing.T) {
 	_, err = qnFs.Get(remoteKey)
 	if err == nil {
 		t.Error("Expected error when getting deleted file, got nil")
+	}
+}
+
+func TestCensor_CheckImageByURI(t *testing.T) {
+	tests := []struct {
+		fs   filesystem.Filesystem
+		name string
+
+		uri      string
+		wantPass bool
+		wantErr  bool
+	}{
+		{
+			fs:       qnFsPrivate,
+			name:     "bad qiniu image",
+			uri:      "qiniu:///90sheji-download/aimodel_test/2024/12/05/1a9e0539c9b6ae2a7f8969d2eb6948bc.jpeg",
+			wantPass: false,
+			wantErr:  true,
+		},
+		{
+			fs:       qnFsPrivate,
+			name:     "bad url image",
+			uri:      qnFsPrivate.MustGetSignedUrl("aimodel_test/2024/12/05/1a9e0539c9b6ae2a7f8969d2eb6948bc.jpeg", 1800),
+			wantPass: false,
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			qnFs := filesystem.MustAsQiniu(tt.fs)
+			// Test image check
+			suggestion, reasons, err := qnFs.NewCensor().CheckImageByURI(tt.uri)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantPass, suggestion == qiniu.SuggestionPass, "CheckImageByURI result mismatch"+strings.Join(reasons, ";"))
+			}
+		})
+	}
+}
+
+func TestCensor_CheckImageData(t *testing.T) {
+	data, err := qnFsPrivate.Get("aimodel_test/2024/12/05/1a9e0539c9b6ae2a7f8969d2eb6948bc.jpeg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		fs   filesystem.Filesystem
+		name string
+
+		data     []byte
+		wantPass bool
+		wantErr  bool
+	}{
+		{
+			fs:       qnFsPrivate,
+			name:     "bad qiniu image",
+			data:     data,
+			wantPass: false,
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			qnFs := filesystem.MustAsQiniu(tt.fs)
+			// Test image check
+			suggestion, reasons, err := qnFs.NewCensor().CheckImageData(tt.data)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantPass, suggestion == qiniu.SuggestionPass, "CheckImageData result mismatch"+strings.Join(reasons, ";"))
+			}
+		})
 	}
 }
