@@ -48,7 +48,10 @@ func (fs *LocalFilesystem) GetUrl(path string) string {
 	if fs.BaseUrl != "" {
 		return strings.TrimRight(fs.BaseUrl, "/") + "/" + strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "./")
 	} else {
-		fullPath := filepath.Join(fs.Root, path)
+		fullPath, err := filepath.Abs(filepath.Join(fs.Root, path))
+		if err != nil {
+			return path
+		}
 		return fullPath
 	}
 
