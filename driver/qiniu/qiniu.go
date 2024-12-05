@@ -199,12 +199,8 @@ func (qn *QiniuFilesystem) GetImageWidthHeight(path string) (width int, height i
 	}
 
 	var imageInfoResp struct {
-		Size        int64  `json:"size"`
-		Format      string `json:"format"`
-		Width       int    `json:"width"`
-		Height      int    `json:"height"`
-		ColorModel  string `json:"colorModel"`
-		Orientation int    `json:"orientation"`
+		Width  int `json:"width"`
+		Height int `json:"height"`
 	}
 	err = json.Unmarshal(body, &imageInfoResp)
 	if err != nil {
