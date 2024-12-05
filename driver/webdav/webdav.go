@@ -74,7 +74,10 @@ func (fs *WebdavFilesystem) GetSignedUrl(filePath string, expires int64) (string
 
 // MustGetSignedUrl 获取签名URL
 func (fs *WebdavFilesystem) MustGetSignedUrl(path string, expires int64) string {
-	url, _ := fs.GetSignedUrl(path, expires)
+	url, err := fs.GetSignedUrl(path, expires)
+	if err != nil {
+		panic(err)
+	}
 	return url
 }
 

@@ -167,7 +167,10 @@ func (qn *QiniuFilesystem) GetSignedUrl(path string, expires int64) (string, err
 
 // MustGetSignedUrl 获取签名URL
 func (qn *QiniuFilesystem) MustGetSignedUrl(path string, expires int64) string {
-	url, _ := qn.GetSignedUrl(path, expires)
+	url, err := qn.GetSignedUrl(path, expires)
+	if err != nil {
+		panic(err)
+	}
 	return url
 }
 

@@ -62,7 +62,10 @@ func (fs *LocalFilesystem) GetSignedUrl(path string, expires int64) (string, err
 
 // MustGetSignedUrl 获取签名URL
 func (fs *LocalFilesystem) MustGetSignedUrl(path string, expires int64) string {
-	url, _ := fs.GetSignedUrl(path, expires)
+	url, err := fs.GetSignedUrl(path, expires)
+	if err != nil {
+		panic(err)
+	}
 	return url
 }
 
