@@ -134,14 +134,28 @@ func (qn *QiniuFilesystem) Put(ctx context.Context, path string, data []byte) er
 
 // Get 获取文件
 func (qn *QiniuFilesystem) Get(path string) ([]byte, error) {
-	output, err := qn.bucketManager.Get(qn.Bucket.Name, path, nil)
+	resURL, err := qn.GetSignedUrl(path, 180)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fail to get signed url, %w", err)
 	}
 
-	body, err := io.ReadAll(output.Body)
+	httpCli := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := httpCli.Get(resURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fail to get file, %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fail to get file, status code: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body, %w", err)
 	}
 
 	return body, nil
