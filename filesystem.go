@@ -32,6 +32,7 @@ type Filesystem interface {
 	MustGetSignedUrl(path string, expires int64) string // 获取签名URL
 
 	Delete(path string) error // 删除文件
+	Exists(path string) bool  // 判断文件是否存在
 }
 
 // NewStorage 创建文件系统

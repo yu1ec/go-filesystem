@@ -2,13 +2,16 @@ package qiniu_test
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
@@ -354,5 +357,29 @@ func TestCensor_CheckImageData(t *testing.T) {
 				assert.Equal(t, tt.wantPass, suggestion == qiniu.SuggestionPass, "CheckImageData result mismatch"+strings.Join(reasons, ";"))
 			}
 		})
+	}
+}
+
+func TestQiniuFilesystem_Exists(t *testing.T) {
+	testData := []byte("test")
+	// 使用时间戳和随机数组合生成唯一文件名
+	randNum := rand.New(rand.NewSource(time.Now().UnixNano())).Int63()
+	testFile := fmt.Sprintf("test_exists_%d_%d.txt", time.Now().UnixNano(), randNum)
+	err := qnFsPrivate.Put(context.Background(), testFile, testData)
+	if err != nil {
+		t.Fatalf("Failed to upload test file: %v", err)
+	}
+
+	if !qnFsPrivate.Exists(testFile) {
+		t.Error("Expected file to exist, but it doesn't")
+	}
+
+	err = qnFsPrivate.Delete(testFile)
+	if err != nil {
+		t.Fatalf("Failed to delete test file: %v", err)
+	}
+
+	if qnFsPrivate.Exists(testFile) {
+		t.Error("Expected file to not exist, but it does")
 	}
 }

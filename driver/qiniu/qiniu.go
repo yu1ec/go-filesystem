@@ -248,3 +248,17 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 func (qn *QiniuFilesystem) Delete(path string) error {
 	return qn.bucketManager.Delete(qn.Bucket.Name, path)
 }
+
+// Exists 判断文件是否存在
+func (qn *QiniuFilesystem) Exists(path string) bool {
+	signedUrl := qn.MustGetSignedUrl(path, 180)
+
+	// 只请求头信息，判断文件是否存在
+	resp, err := http.Head(signedUrl)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode != http.StatusNotFound
+}

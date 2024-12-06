@@ -171,4 +171,32 @@ func TestWebdavFilesystem(t *testing.T) {
 			t.Error("Expected error when getting deleted file, got nil")
 		}
 	})
+
+	t.Run("Exists", func(t *testing.T) {
+		// 先创建一个测试文件
+		testData := []byte("test file for exists check")
+		testPath := "/test_exists.txt"
+
+		err := fs.Put(context.Background(), testPath, testData)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// 测试文件是否存在
+		exists := fs.Exists(testPath)
+		if !exists {
+			t.Error("Expected file to exist, but it doesn't")
+		}
+
+		err = fs.Delete(testPath)
+		if err != nil {
+			t.Fatalf("Failed to delete test file: %v", err)
+		}
+
+		exists = fs.Exists(testPath)
+		if exists {
+			t.Error("Expected file to not exist, but it does")
+		}
+
+	})
 }

@@ -96,3 +96,10 @@ func (fs *LocalFilesystem) Delete(path string) error {
 	}
 	return nil
 }
+
+// Exists 判断文件是否存在
+func (fs *LocalFilesystem) Exists(path string) bool {
+	fullpath := filepath.Join(fs.Root, path)
+	_, err := os.Stat(fullpath)
+	return !os.IsNotExist(err)
+}

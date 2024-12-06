@@ -23,7 +23,7 @@ func TestLocalFilesystem(t *testing.T) {
 	fs := local.NewStorage(tempDir, "")
 
 	t.Run("Put和Get", func(t *testing.T) {
-		path := filepath.Join(tempDir, "test.txt")
+		path := "test.txt"
 		data := []byte("测试数据")
 
 		err := fs.Put(context.Background(), path, data)
@@ -42,7 +42,7 @@ func TestLocalFilesystem(t *testing.T) {
 	})
 
 	t.Run("PutWithoutContext", func(t *testing.T) {
-		path := filepath.Join(tempDir, "test_no_context.txt")
+		path := "test_no_context.txt"
 		data := []byte("无上下文测试数据")
 
 		err := fs.PutWithoutContext(path, data)
@@ -178,7 +178,7 @@ func TestLocalFilesystem(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		// 创建测试文件
-		testPath := filepath.Join(tempDir, "test_delete.txt")
+		testPath := "test_delete.txt"
 		testData := []byte("test file for deletion")
 
 		err := fs.Put(context.Background(), testPath, testData)
@@ -202,6 +202,32 @@ func TestLocalFilesystem(t *testing.T) {
 		err = fs.Delete(filepath.Join(tempDir, "nonexistent.txt"))
 		if err == nil {
 			t.Error("Expected error when deleting non-existent file, got nil")
+		}
+	})
+
+	t.Run("Exists", func(t *testing.T) {
+		// 创建测试文件
+		testPath := "test_exists.txt"
+		testData := []byte("test file for exists check")
+
+		err := fs.Put(context.Background(), testPath, testData)
+		if err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// 验证文件存在
+		if !fs.Exists(testPath) {
+			t.Error("Expected file to exist, but it doesn't")
+		}
+
+		err = fs.Delete(testPath)
+		if err != nil {
+			t.Fatalf("Failed to delete test file: %v", err)
+		}
+
+		// 验证不存在的文件不存在
+		if fs.Exists(filepath.Join(tempDir, "nonexistent.txt")) {
+			t.Error("Expected file to not exist, but it does")
 		}
 	})
 }

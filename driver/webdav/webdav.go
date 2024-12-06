@@ -100,3 +100,9 @@ func (fs *WebdavFilesystem) GetImageWidthHeight(path string) (int, int, error) {
 func (fs *WebdavFilesystem) Delete(path string) error {
 	return fs.client.Remove(path)
 }
+
+// Exists 判断文件是否存在
+func (fs *WebdavFilesystem) Exists(path string) bool {
+	_, err := fs.client.Stat(path)
+	return err == nil
+}
