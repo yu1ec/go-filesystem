@@ -22,8 +22,9 @@ type QiniuFilesystem struct {
 	AccessSecret string
 	Bucket       Bucket
 
-	mac           *auth.Credentials
-	bucketManager *storage.BucketManager
+	mac              *auth.Credentials
+	bucketManager    *storage.BucketManager
+	operationManager *storage.OperationManager
 }
 
 // Bucket 存储桶
@@ -49,7 +50,7 @@ func NewStorage(accessKey, accessSecret string, bucket Bucket) *QiniuFilesystem 
 		UseHTTPS: true,
 	}
 	qnFs.bucketManager = storage.NewBucketManager(qnFs.mac, &cfg)
-
+	qnFs.operationManager = storage.NewOperationManager(qnFs.mac, &cfg)
 	return qnFs
 }
 
@@ -72,6 +73,17 @@ func (bucket Bucket) GetAntileechSignedUrl(path string, expires int64) (string, 
 		restURL = path
 	} else {
 		restURL = bucket.GetUrl(path)
+		parsedUrl, err := url.Parse(restURL)
+		if err != nil {
+			return "", err
+		}
+
+		restURL = parsedUrl.Scheme + "://" + parsedUrl.Host + parsedUrl.Path
+
+		qs := removeQuerySignParams(parsedUrl.RawQuery)
+		if qs != "" {
+			restURL += "?" + qs
+		}
 	}
 
 	if bucket.TimestampEncKey == "" {
@@ -234,7 +246,7 @@ func (qn *QiniuFilesystem) getPrivateUrl(path string, expires int64) (string, er
 	}
 	key := strings.TrimLeft(uri.Path, "/")
 
-	qs := uri.RawQuery
+	qs := removeQuerySignParams(uri.RawQuery)
 
 	if qs != "" {
 		privateUrl = storage.MakePrivateURLv2WithQueryString(qn.mac, qn.Bucket.Domain, key, qs, deadline)
@@ -261,4 +273,138 @@ func (qn *QiniuFilesystem) Exists(path string) bool {
 	defer resp.Body.Close()
 
 	return resp.StatusCode != http.StatusNotFound
+}
+
+type ZipOptions struct {
+	SaveAs    *SaveAs
+	Pipeline  string
+	NotifyURL string
+	Force     bool
+	IsWait    bool
+}
+
+// Zip 打包资源
+// mkzipArgs: 打包参数
+// saveAs: 保存参数
+func (qn *QiniuFilesystem) Zip(mkzipArgs *MkZipArgs, opts *ZipOptions) (string, error) {
+	mkzipArgsStr, err := mkzipArgs.ToString()
+	if err != nil {
+		return "", fmt.Errorf("failed to get fop string, %w", err)
+	}
+
+	bucket := qn.Bucket.Name
+
+	// 此处的key是打包索引文件的key
+	key := mkzipArgs.GetIndexFileKey()
+	pipeline := ""
+	notifyURL := ""
+	force := true
+	fops := mkzipArgsStr
+
+	if !qn.Exists(key) {
+		indexContents := []byte(mkzipArgs.GetUrlsStr())
+
+		// 如果打包索引文件不存在，则先上传
+		err := qn.Put(context.Background(), key, indexContents)
+		if err != nil {
+			return "", fmt.Errorf("failed to put index file, %w", err)
+		}
+	}
+
+	// 延迟删除打包索引文件
+	defer func() {
+		_ = qn.Delete(key)
+	}()
+
+	if opts != nil {
+		if opts.Pipeline != "" {
+			pipeline = opts.Pipeline
+		}
+		if opts.NotifyURL != "" {
+			notifyURL = opts.NotifyURL
+		}
+		if opts.Force {
+			force = opts.Force
+		}
+
+		if opts.SaveAs != nil {
+			saveAsStr, err := opts.SaveAs.ToString()
+			if err != nil {
+				return "", fmt.Errorf("failed to get save key, %w", err)
+			}
+			fops += "|" + saveAsStr
+		}
+	}
+
+	// client.DebugMode = true
+	// client.DeepDebugInfo = true
+	persistentID, err := qn.operationManager.Pfop(
+		bucket,
+		key,
+		fops,
+		pipeline,
+		notifyURL,
+		force,
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to pfop, %w", err)
+	}
+
+	// 等待完成
+	if opts.IsWait {
+		for {
+			// 等待500ms
+			time.Sleep(500 * time.Millisecond)
+			ret, err := qn.Prefop(persistentID)
+			if err != nil {
+				return "", fmt.Errorf("failed to prefop, %w", err)
+			}
+
+			if ret.ID != persistentID {
+				return "", fmt.Errorf("persistentID not match, %s != %s", ret.ID, persistentID)
+			}
+
+			if ret.Code == 3 {
+				return "", fmt.Errorf("failed to zip, %s", ret.Desc)
+			}
+
+			if ret.Code == 0 {
+				return ret.ID, nil
+			}
+		}
+	}
+
+	return persistentID, nil
+}
+
+// Prefop 查询任务状态
+func (qn *QiniuFilesystem) Prefop(persistentID string) (storage.PrefopRet, error) {
+	ret, err := qn.operationManager.Prefop(persistentID)
+	return ret, err
+}
+
+// removeQuerySignParams 移除查询参数中的签名参数
+func removeQuerySignParams(qs string) string {
+	if qs == "" {
+		return ""
+	}
+
+	parts := strings.Split(qs, "&")
+	var result []string
+	needRemoveSignParams := []string{"sign=", "t=", "e=", "token="}
+
+	for _, part := range parts {
+		skip := false
+		for _, param := range needRemoveSignParams {
+			if strings.HasPrefix(part, param) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			result = append(result, part)
+		}
+	}
+	return strings.Join(result, "&")
 }

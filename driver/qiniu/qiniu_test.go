@@ -103,12 +103,39 @@ func TestQiniuFilesystem_GetPrivateImageWidthSize(t *testing.T) {
 
 func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 	testCases := []struct {
-		name     string
-		fs       *qiniu.QiniuFilesystem
-		key      string
-		query    string
-		checkUrl func(t *testing.T, url string)
+		name              string
+		fs                *qiniu.QiniuFilesystem
+		key               string
+		query             string
+		ExceptHttpStatus  int
+		ExceptContentType string
+		checkUrl          func(t *testing.T, url string)
 	}{
+		{
+			name:              "私有空间已经携带了签名参数后的再签名",
+			fs:                qnFsPrivate,
+			key:               os.Getenv("QINIU_PRIVATE_TEST_REMOTE_URL") + "?token=1234567890&e=1234567890&imageInfo",
+			ExceptContentType: "application/json",
+			checkUrl: func(t *testing.T, url string) {
+			},
+		},
+		{
+			name: "安全空间已经携带了签名参数后的再签名",
+			fs:   qnFs,
+			key:  os.Getenv("QINIU_SECURE_TEST_REMOTE_KEY") + "?sign=1234567890&t=1234567890",
+			checkUrl: func(t *testing.T, url string) {
+				// 检测是否可以访问成功
+			},
+		},
+		{
+			name:             "私有空间已经携带了签名参数后的再签名",
+			fs:               qnFsPrivate,
+			key:              os.Getenv("QINIU_PRIVATE_TEST_REMOTE_URL") + "?token=1234567890&e=1234567890",
+			ExceptHttpStatus: http.StatusOK,
+			checkUrl: func(t *testing.T, url string) {
+				// 检测是否可以访问成功
+			},
+		},
 		{
 			name: "安全时间戳签名",
 			fs:   qnFs,
@@ -230,7 +257,6 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 			if tc.query != "" {
 				key = key + tc.query
 			}
-
 			signedUrl, err := tc.fs.GetSignedUrl(key, 30)
 			if err != nil {
 				t.Fatalf("获取签名URL失败: %v", err)
@@ -245,17 +271,28 @@ func TestQiniuFilesystem_GetSignedUrl(t *testing.T) {
 				t.Logf("警告：无法访问生成的URL: %v", err)
 			} else {
 				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusOK {
-					t.Errorf("URL访问失败，状态码: %d", resp.StatusCode)
+				exceptHttpStatus := tc.ExceptHttpStatus
+				if exceptHttpStatus == 0 {
+					exceptHttpStatus = http.StatusOK
+				}
+				if resp.StatusCode != exceptHttpStatus {
+					t.Errorf("URL访问失败，状态码: %d, 期望的状态码: %d", resp.StatusCode, exceptHttpStatus)
 				} else {
 					t.Logf("URL访问成功，状态码: %d", resp.StatusCode)
 				}
 
-				body, err := io.ReadAll(resp.Body)
+				if tc.ExceptContentType != "" {
+					respContentType := resp.Header.Get("Content-Type")
+					if !strings.EqualFold(respContentType, tc.ExceptContentType) {
+						t.Errorf("URL访问失败，Content-Type: %s, 期望的Content-Type: %s", respContentType, tc.ExceptContentType)
+					}
+				}
+
+				_, err := io.ReadAll(resp.Body)
 				if err != nil {
 					t.Errorf("读取响应体失败: %v", err)
 				}
-				t.Logf("响应体: %s", string(body))
+				t.Logf("URL访问成功，状态码: %d", resp.StatusCode)
 			}
 		})
 	}
@@ -295,14 +332,14 @@ func TestCensor_CheckImageByURI(t *testing.T) {
 		{
 			fs:       qnFsPrivate,
 			name:     "bad qiniu image",
-			uri:      "qiniu:///90sheji-download/aimodel_test/2024/12/05/1a9e0539c9b6ae2a7f8969d2eb6948bc.jpeg",
+			uri:      os.Getenv("BAD_QINIU_PROTOCOL_IMAGE_URI"),
 			wantPass: false,
 			wantErr:  true,
 		},
 		{
 			fs:       qnFsPrivate,
 			name:     "bad url image",
-			uri:      qnFsPrivate.MustGetSignedUrl("aimodel_test/2024/12/05/1a9e0539c9b6ae2a7f8969d2eb6948bc.jpeg", 1800),
+			uri:      qnFsPrivate.MustGetSignedUrl(os.Getenv("BAD_HTTP_IMAGE_URL"), 1800),
 			wantPass: false,
 			wantErr:  false,
 		},
@@ -382,4 +419,94 @@ func TestQiniuFilesystem_Exists(t *testing.T) {
 	if qnFsPrivate.Exists(testFile) {
 		t.Error("Expected file to not exist, but it does")
 	}
+}
+
+func TestQiniuFilesystem_Zip(t *testing.T) {
+	testCases := []struct {
+		name    string
+		fs      *qiniu.QiniuFilesystem
+		urlsMap map[string]string
+		wantErr bool
+	}{
+		{
+			name: "正常打包-私有空间文件",
+			fs:   qnFsPrivate,
+			urlsMap: map[string]string{
+				qnFsPrivate.MustGetSignedUrl("test/test.txt", 3600): "我是中文.txt",
+				// qnFsPrivate.MustGetSignedUrl("test/logo.txt", 3600): "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "打包不存在的文件",
+			fs:   qnFsPrivate,
+			urlsMap: map[string]string{
+				"not_exist.txt": "xxxx.txt",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// 先准备测试文件（如果需要）
+			if !tc.wantErr {
+				for uploadUrl := range tc.urlsMap {
+					parsedUrl, err := url.Parse(uploadUrl)
+					if err != nil {
+						t.Fatalf("解析URL%s失败: %v", uploadUrl, err)
+					}
+					remoteKey := strings.TrimLeft(parsedUrl.Path, "/")
+					err = tc.fs.Put(context.Background(), remoteKey, []byte("test content"))
+					if err != nil {
+						t.Fatalf("准备测试文件失败: %v", err)
+					}
+					// 延迟删除测试文件
+					defer func(key string) {
+						_ = tc.fs.Delete(key)
+					}(remoteKey)
+				}
+			}
+
+			// 构建zip参数
+			zipKey := fmt.Sprintf("test_zip_%d.zip", time.Now().UnixNano())
+			mkzipArgs := &qiniu.MkZipArgs{
+				URLsMap: tc.urlsMap,
+			}
+
+			opts := &qiniu.ZipOptions{
+				SaveAs: &qiniu.SaveAs{
+					SaveBucket: tc.fs.Bucket.Name,
+					SaveKey:    zipKey,
+				},
+				IsWait: true,
+			}
+
+			// 执行zip操作
+			_, err := tc.fs.Zip(mkzipArgs, opts)
+
+			// 验证结果
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			// 验证zip文件是否存在
+			exists := tc.fs.Exists(zipKey)
+			assert.True(t, exists, "生成的zip文件不存在")
+
+			// 清理生成的zip文件
+			defer func() {
+				_ = tc.fs.Delete(zipKey)
+			}()
+
+			// 可选：下载并验证zip文件内容
+			data, err := tc.fs.Get(zipKey)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, data, "zip文件内容为空")
+		})
+	}
+
 }
