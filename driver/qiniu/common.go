@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/qiniu/go-sdk/v7/storage"
@@ -72,8 +73,9 @@ func (m *MkZipArgs) GetUrlsStr() string {
 		if alias != "" {
 			urlsStr += "/alias/" + base64.URLEncoding.EncodeToString([]byte(alias))
 		}
+		urlsStr += "\n"
 	}
-	return urlsStr
+	return strings.Trim(urlsStr, "\n")
 }
 
 // 将MkZipArgs转换为fop字符串
